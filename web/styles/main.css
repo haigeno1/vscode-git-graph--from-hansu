@@ -418,7 +418,7 @@ table { border-collapse: collapse; }
 	left:0;
 	width:50%;
 	padding:10px;
-	padding-right:16px;
+	padding-right:24px;
 	text-overflow:ellipsis;
 	-webkit-user-select:text;
 	user-select:text;
@@ -500,7 +500,7 @@ table { border-collapse: collapse; }
     right: 0;
 	top:0;
 	bottom:0;
-    z-index: 11;
+    z-index: 1;
 	pointer-events: none;
 
 }
@@ -956,7 +956,7 @@ body.tagLabelsRightAligned .gitRef.tag{
 }
 
 #controls.fetchSupported{
-	padding-right:162px;
+	padding-right:180px;
 }
 #controls.fetchSupported #currentBtn{
 	right:160px;

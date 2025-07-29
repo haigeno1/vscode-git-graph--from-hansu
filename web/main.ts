@@ -1,4 +1,3 @@
-
 class GitGraphView {
 	private gitRepos: GG.GitRepoSet;
 	private gitBranches: ReadonlyArray<string> = [];
@@ -93,14 +92,14 @@ class GitGraphView {
 			this.saveState();
 			this.clearCommits();
 			this.requestLoadRepoInfoAndCommits(true, true);
-		});
+		}, this.config.singleBranchSelect);
 		this.authorDropdown = new Dropdown('authorDropdown', false, true, 'Authors', (values) => {
 			this.currentAuthors = values;
 			this.maxCommits = this.config.initialLoadCommits;
 			this.saveState();
 			this.clearCommits();
 			this.requestLoadRepoInfoAndCommits(true, true);
-		});
+		}, this.config.singleAuthorSelect);
 		this.showRemoteBranchesElem = <HTMLInputElement>document.getElementById('showRemoteBranchesCheckbox')!;
 		this.showRemoteBranchesElem.addEventListener('change', () => {
 			this.saveRepoStateValue(this.currentRepo, 'showRemoteBranchesV2', this.showRemoteBranchesElem.checked ? GG.BooleanOverride.Enabled : GG.BooleanOverride.Disabled);
@@ -184,7 +183,6 @@ class GitGraphView {
 				name: this.gitRepos[this.currentRepo].name || getRepoName(this.currentRepo)
 			}, 'Opening Terminal');
 		});
-		this.gitRepos[this.currentRepo].isCdvSummaryHidden = this.config.commitDetailsView.initiallyHideSummary;
 	}
 
 
@@ -239,7 +237,7 @@ class GitGraphView {
 		this.gitStashes = [];
 		this.gitTags = [];
 		this.currentBranches = null;
-		this.currentAuthors = null;
+		this.currentAuthors = [];
 		this.renderFetchButton();
 		this.closeCommitDetails(false);
 		this.settingsWidget.close();
@@ -300,8 +298,6 @@ class GitGraphView {
 		filterCurrentBranches();
 
 		this.saveState();
-		this.currentAuthors = [];
-		this.currentAuthors.push(SHOW_ALL_BRANCHES);
 
 		// Set up branch dropdown options
 		this.branchDropdown.setOptions(this.getBranchOptions(true), this.currentBranches);
@@ -1031,7 +1027,6 @@ class GitGraphView {
 	private getBranchContextMenuActions(target: DialogTarget & RefTarget): ContextMenuActions {
 		const refName = target.ref, visibility = this.config.contextMenuActionsVisibility.branch;
 		const isSelectedInBranchesDropdown = this.branchDropdown.isSelected(refName);
-		// const isSelectedInBranchesDropdown = this.authorDropdown.isSelected(refName);
 
 		return [[
 			{
@@ -1069,7 +1064,7 @@ class GitGraphView {
 				visible: visibility.merge && this.gitBranchHead !== refName,
 				onClick: () => this.mergeAction(refName, refName, GG.MergeActionOn.Branch, target)
 			}, {
-				title: 'Rebase current branch on Branch' + ELLIPSIS,
+				title: 'Rebase current Branch on Branch' + ELLIPSIS,
 				visible: visibility.rebase && this.gitBranchHead !== refName,
 				onClick: () => this.rebaseAction(refName, refName, GG.RebaseActionOn.Branch, target)
 			}, {
@@ -1139,8 +1134,8 @@ class GitGraphView {
 			},
 			{
 				title: 'Select in Branches Dropdown',
-				visible: visibility.selectInBranchesDropdown && !isSelectedInBranchesDropdown,
-				onClick: () => this.branchDropdown.selectOption(refName)
+				visible: visibility.selectInBranchesDropdown && (!isSelectedInBranchesDropdown || this.branchDropdown.isShowAllSelected()),
+				onClick: (e) => this.branchDropdown.selectOption(refName, e)
 			},
 			{
 				title: 'Unselect in Branches Dropdown',
@@ -1264,7 +1259,7 @@ class GitGraphView {
 				visible: visibility.merge,
 				onClick: () => this.mergeAction(hash, abbrevCommit(hash), GG.MergeActionOn.Commit, target)
 			}, {
-				title: 'Rebase current branch on this Commit' + ELLIPSIS,
+				title: 'Rebase current Branch on this Commit' + ELLIPSIS,
 				visible: visibility.rebase,
 				onClick: () => this.rebaseAction(hash, abbrevCommit(hash), GG.RebaseActionOn.Commit, target)
 			}, {
@@ -1377,8 +1372,8 @@ class GitGraphView {
 			},
 			{
 				title: 'Select in Branches Dropdown',
-				visible: visibility.selectInBranchesDropdown && !isSelectedInBranchesDropdown,
-				onClick: () => this.branchDropdown.selectOption(prefixedRefName)
+				visible: visibility.selectInBranchesDropdown && (!isSelectedInBranchesDropdown || this.branchDropdown.isShowAllSelected()),
+				onClick: (e) => this.branchDropdown.selectOption(prefixedRefName, e)
 			},
 			{
 				title: 'Unselect in Branches Dropdown',
@@ -1750,7 +1745,7 @@ class GitGraphView {
 
 	private rebaseAction(obj: string, name: string, actionOn: GG.RebaseActionOn, target: DialogTarget & (CommitTarget | RefTarget)) {
 		dialog.showForm('Are you sure you want to rebase ' + (this.gitBranchHead !== null ? '<b><i>' + escapeHtml(this.gitBranchHead) + '</i></b> (the current branch)' : 'the current branch') + ' on ' + actionOn.toLowerCase() + ' <b><i>' + escapeHtml(name) + '</i></b>?', [
-			{ type: DialogInputType.Checkbox, name: 'Launch Interactive Rebase in new Terminal', value: this.config.dialogDefaults.rebase.interactive },
+			{ type: DialogInputType.Checkbox, name: 'Interactive Rebase (launch in new Terminal)', value: this.config.dialogDefaults.rebase.interactive },
 			{ type: DialogInputType.Checkbox, name: 'Ignore Date', value: this.config.dialogDefaults.rebase.ignoreDate, info: 'Only applicable to a non-interactive rebase.' }
 		], 'Yes, rebase', (values) => {
 			let interactive = <boolean>values[0];
@@ -2056,7 +2051,6 @@ class GitGraphView {
 				this.repoDropdown.refresh();
 				this.branchDropdown.refresh();
 				this.authorDropdown.refresh();
-
 			}
 			if (fmc !== findMatchColour) {
 				findMatchColour = fmc;
@@ -2710,7 +2704,7 @@ class GitGraphView {
 				}
 			}, () => this.saveState());
 
-			observeElemScroll('cdvFiles', expandedCommit.scrollTop.fileView, (scrollTop) => {
+			observeElemScroll('cdvFilesView', expandedCommit.scrollTop.fileView, (scrollTop) => {
 				if (this.expandedCommit === null) return;
 				this.expandedCommit.scrollTop.fileView = scrollTop;
 				if (this.expandedCommit.contextMenuOpen.fileView > -1) {
@@ -2735,6 +2729,7 @@ class GitGraphView {
 			let cdvSummaryToggleBtn = document.getElementById('cdvSummaryToggleBtn');
 			if (cdvSummaryToggleBtn !== null) cdvSummaryToggleBtn.addEventListener('click', () => {
 				this.gitRepos[this.currentRepo].isCdvSummaryHidden = !(this.gitRepos[this.currentRepo].isCdvSummaryHidden);
+				this.saveRepoState();
 				this.hideCdvSummary(this.gitRepos[this.currentRepo].isCdvSummaryHidden);
 			});
 			this.hideCdvSummary(this.gitRepos[this.currentRepo].isCdvSummaryHidden);
@@ -2908,7 +2903,7 @@ class GitGraphView {
 	 * @param fileWasViewed Was the file viewed - if so, set it to be the last viewed file.
 	 */
 	private cdvUpdateFileState(file: GG.GitFileChange, fileElem: HTMLElement, isReviewed: boolean | null, fileWasViewed: boolean) {
-		const expandedCommit = this.expandedCommit, filesElem = document.getElementById('cdvFiles'), filePath = file.newFilePath;
+		const expandedCommit = this.expandedCommit, filesElem = document.getElementById('cdvFilesView'), filePath = file.newFilePath;
 		if (expandedCommit === null || expandedCommit.fileTree === null || filesElem === null) return;
 
 		if (fileWasViewed) {
@@ -2979,7 +2974,7 @@ class GitGraphView {
 	}
 
 	private changeFileViewType(type: GG.FileViewType) {
-		const expandedCommit = this.expandedCommit, filesElem = document.getElementById('cdvFiles');
+		const expandedCommit = this.expandedCommit, filesElem = document.getElementById('cdvFilesView');
 		if (expandedCommit === null || expandedCommit.fileTree === null || expandedCommit.fileChanges === null || filesElem === null) return;
 		GitGraphView.closeCdvContextMenuIfOpen(expandedCommit);
 		this.setFileViewType(type);
@@ -3301,7 +3296,7 @@ class GitGraphView {
 	}
 
 	private saveAndRenderCodeReview(codeReview: GG.CodeReview | null) {
-		let filesElem = document.getElementById('cdvFiles');
+		let filesElem = document.getElementById('cdvFilesView');
 		if (this.expandedCommit === null || this.expandedCommit.fileTree === null || filesElem === null) return;
 
 		this.expandedCommit.codeReview = codeReview;

@@ -72,8 +72,7 @@ class Config {
 				: FileViewType.Tree,
 			location: this.getRenamedExtensionSetting<string>('commitDetailsView.location', 'commitDetailsViewLocation', 'Inline') === 'Docked to Bottom'
 				? CommitDetailsViewLocation.DockedToBottom
-				: CommitDetailsViewLocation.Inline,
-			initiallyHideSummary: this.config.get('commitDetailsView.initiallyHideSummary', false)
+				: CommitDetailsViewLocation.Inline
 		};
 	}
 
@@ -463,6 +462,20 @@ class Config {
 	 */
 	get onlyFollowFirstParent() {
 		return !!this.getRenamedExtensionSetting('repository.onlyFollowFirstParent', 'onlyFollowFirstParent', false);
+	}
+
+	/**
+	 * Get the value of the `git-graph.repository.singleAuthorSelect` Extension Setting.
+	 */
+	get singleAuthorSelect() {
+		return !!this.config.get('repository.singleAuthorSelect', true);
+	}
+
+	/**
+	 * Get the value of the `git-graph.repository.singleBranchSelect` Extension Setting.
+	 */
+	get singleBranchSelect() {
+		return !!this.config.get('repository.singleBranchSelect', true);
 	}
 
 	/**
